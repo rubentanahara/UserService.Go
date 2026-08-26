@@ -65,3 +65,16 @@ jobs:
 
       - name: integration test
         run: go test -tags=integration -race ./...
+
+  deploy:
+    name: Deploy to Fly.io
+    needs: [test, integration]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency: deploy-group
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      - run: flyctl deploy --remote-only --app user-service-weathered-pine-7843
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
