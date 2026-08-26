@@ -1,4 +1,4 @@
-.PHONY: run build test test-integration coverage coverage-html generate fmt vet lint staticcheck check docker-build compose-up compose-down clean
+.PHONY: run build test test-integration coverage coverage-html generate fmt vet lint staticcheck check docker-build compose-up compose-up-api compose-down clean
 
 run:
 	go run ./cmd/server
@@ -41,6 +41,10 @@ docker-build:
 
 compose-up:
 	docker compose up --build
+
+compose-up-api:
+	docker compose up --build -d
+	docker compose logs -f app
 
 compose-down:
 	docker compose down -v

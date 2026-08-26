@@ -1,0 +1,29 @@
+meta {
+  name: List Users
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/users?limit=20&offset=0
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limit: 20
+  offset: 0
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+tests {
+  test("returns 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("body is array", function () {
+    expect(res.body).to.be.an("array");
+  });
+}
