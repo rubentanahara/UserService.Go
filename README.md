@@ -93,8 +93,8 @@ internal/ratelimit/        # per-IP rate limiting
 ## Testing
 
 ```bash
-go test ./...                      # unit tests (mocked repository/service)
-go test -tags=integration ./...    # + real MongoDB via testcontainers (needs Docker)
+make test              # unit tests (mocked repository/service)
+make test-integration  # + real MongoDB via testcontainers (needs Docker)
 ```
 
 ## Conventions
