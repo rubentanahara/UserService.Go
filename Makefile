@@ -36,6 +36,9 @@ staticcheck:
 
 check: fmt vet staticcheck lint test
 
+hooks:
+	git config core.hooksPath .githooks
+
 docker-build:
 	docker build -t user_service .
 
