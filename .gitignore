@@ -1,2 +1,12 @@
 /user_service
 *.log
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+go.work
+go.work.sum
+.env
