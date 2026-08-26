@@ -3,50 +3,97 @@ package main
 import (
 	"context"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/rubentanahara/user_service/internal/user"
+	"github.com/rubentanahara/user_service/internal/logging"
+	"github.com/rubentanahara/user_service/internal/ratelimit"
+)
+
+const (
+	maxBodyBytes       = 1 << 20
+	requestTimeout     = 5 * time.Second
+	shutdownTimeout    = 10 * time.Second
+	readHeaderTimeout  = 5 * time.Second
+	readTimeout        = 10 * time.Second
+	writeTimeout       = 10 * time.Second
+	idleTimeout        = 60 * time.Second
+	loginRatePerSecond = 5
+	loginRateBurst     = 10
+	defaultMaxPoolSize = 100
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	ctx := context.Background()
 
-	client, err := mongo.Connect(options.Client().ApplyURI("mongodb://localhost:27017"))
+	srv, cleanup, err := InitializeServer(ctx)
 	if err != nil {
-		log.Fatalf("connect mongo: %v", err)
+		log.Fatalf("initialize server: %v", err)
 	}
-	defer client.Disconnect(context.Background())
+	defer cleanup()
 
-	coll := client.Database("user_service").Collection("users")
-	if err := user.EnsureIndexes(context.Background(), coll); err != nil {
-		log.Fatalf("ensure indexes: %v", err)
-	}
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(bodySizeLimit(maxBodyBytes))
+	r.Use(logging.Middleware(srv.Logger))
+	r.Use(timeout(requestTimeout))
 
-	repo := user.NewMongoRepository(coll)
-	service := user.NewService(repo)
-	handler := user.NewHandler(service, logger)
-
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "pong"})
-	})
 	r.GET("/health/live", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.GET("/health/ready", func(c *gin.Context) {
-		if err := client.Ping(c.Request.Context(), nil); err != nil {
+		if err := srv.Mongo.Ping(c.Request.Context(), nil); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
-	handler.Register(r)
 
-	r.Run(":5001")
+	srv.Handler.Register(r, ratelimit.PerIP(loginRatePerSecond, loginRateBurst))
+
+	httpServer := &http.Server{
+		Addr:              ":" + string(srv.Port),
+		Handler:           r,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %v", err)
+		}
+	}()
+
+	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-stopCtx.Done()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown: %v", err)
+	}
+}
+
+func bodySizeLimit(n int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, n)
+		c.Next()
+	}
+}
+
+func timeout(d time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), d)
+		defer cancel()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
 }
