@@ -9,3 +9,4 @@ Go service. Rules live in `.claude/rules/`, split by topic:
 - [yagni.md](.claude/rules/yagni.md) — non-negotiable scope constraints
 - [testing.md](.claude/rules/testing.md) — scoped to `*_test.go`
 - [service-layer.md](.claude/rules/service-layer.md) — scoped to `service/` and `*service*.go`
+- [logging.md](.claude/rules/logging.md) — `slog` usage, request-id, boundary logging
