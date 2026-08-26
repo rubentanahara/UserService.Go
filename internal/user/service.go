@@ -11,6 +11,8 @@ import (
 type Service interface {
 	Create(ctx context.Context, username, email, password string) (*User, error)
 	GetByID(ctx context.Context, id string) (*User, error)
+	Update(ctx context.Context, id, username, email string) (*User, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type service struct {
@@ -47,4 +49,20 @@ func (s *service) GetByID(ctx context.Context, id string) (*User, error) {
 		return nil, fmt.Errorf("get user %s: %w", id, err)
 	}
 	return u, nil
+}
+
+func (s *service) Update(ctx context.Context, id, username, email string) (*User, error) {
+	patch := &User{Username: username, Email: email, UpdatedAt: time.Now().Unix()}
+	u, err := s.repo.Update(ctx, id, patch)
+	if err != nil {
+		return nil, fmt.Errorf("update user %s: %w", id, err)
+	}
+	return u, nil
+}
+
+func (s *service) Delete(ctx context.Context, id string) error {
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("delete user %s: %w", id, err)
+	}
+	return nil
 }

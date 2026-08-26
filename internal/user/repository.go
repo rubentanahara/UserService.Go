@@ -18,6 +18,8 @@ var (
 type Repository interface {
 	Create(ctx context.Context, u *User) error
 	GetByID(ctx context.Context, id string) (*User, error)
+	Update(ctx context.Context, id string, u *User) (*User, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type mongoRepository struct {
@@ -68,4 +70,47 @@ func (r *mongoRepository) GetByID(ctx context.Context, id string) (*User, error)
 		return nil, fmt.Errorf("find user %s: %w", id, err)
 	}
 	return &u, nil
+}
+
+func (r *mongoRepository) Update(ctx context.Context, id string, u *User) (*User, error) {
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id %q: %w", id, err)
+	}
+
+	update := bson.M{"$set": bson.M{
+		"username":   u.Username,
+		"email":      u.Email,
+		"updated_at": u.UpdatedAt,
+	}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	var updated User
+	err = r.coll.FindOneAndUpdate(ctx, bson.M{"_id": oid}, update, opts).Decode(&updated)
+	if mongo.IsDuplicateKeyError(err) {
+		return nil, ErrDuplicate
+	}
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update user %s: %w", id, err)
+	}
+	return &updated, nil
+}
+
+func (r *mongoRepository) Delete(ctx context.Context, id string) error {
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return fmt.Errorf("invalid id %q: %w", id, err)
+	}
+
+	res, err := r.coll.DeleteOne(ctx, bson.M{"_id": oid})
+	if err != nil {
+		return fmt.Errorf("delete user %s: %w", id, err)
+	}
+	if res.DeletedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
