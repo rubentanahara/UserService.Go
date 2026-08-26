@@ -1,4 +1,4 @@
-.PHONY: run build test test-integration generate fmt vet lint staticcheck check docker-build compose-up compose-down clean
+.PHONY: run build test test-integration coverage coverage-html generate fmt vet lint staticcheck check docker-build compose-up compose-down clean
 
 run:
 	go run ./cmd/server
@@ -11,6 +11,13 @@ test:
 
 test-integration:
 	go test -tags=integration ./... -race
+
+coverage:
+	go test ./... -race -coverprofile=coverage.out
+	go tool cover -func=coverage.out
+
+coverage-html: coverage
+	go tool cover -html=coverage.out
 
 generate:
 	go generate ./...
