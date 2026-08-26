@@ -1,0 +1,16 @@
+name: cd
+
+on:
+  workflow_call:
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    concurrency: deploy-group
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      - run: flyctl deploy --remote-only --app user-service-weathered-pine-7843
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
