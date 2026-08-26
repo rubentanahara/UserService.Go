@@ -28,7 +28,7 @@ docker run -d --name user_service-mongo -p 27017:27017 mongo:7
 Start the server:
 
 ```bash
-JWT_SECRET=change-me go run ./cmd/server
+JWT_SECRET=change-me make run
 ```
 
 ## Configuration
